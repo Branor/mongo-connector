@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A class to serve as proxy for the target engine for testing.
+"""A class to serve as proxy for replicating documents from MongoDB
+into Couchbase Server.
 
-Receives documents from the oplog worker threads and indexes them
-into the backend.
-
-Please look at the Solr and ElasticSearch doc manager classes for a sample
-implementation with real systems.
+Receives documents from the oplog worker threads and inserts them
+into the specified Couchbase bucket.
 """
 
 import itertools
@@ -70,13 +68,14 @@ class DocManager(DocManagerBase):
         return super(DocManager, self).apply_update(doc, update_spec)
 
     def update(self, doc, update_spec):
-        print "--> update"
+        #print "--> update"
         """Apply updates given in update_spec to the document whose id
         matches that of doc.
 
         """
         retries = 100
 
+        #Handle non-string document ids, such as Mongo's ObjectId
         doc["_id"] = str(doc["_id"])
         doc_id = doc["_id"]
 
@@ -97,8 +96,8 @@ class DocManager(DocManagerBase):
         return updated
 
     def upsert(self, doc):
-        print "--> upsert"
-        """Adds a document to the doc dict.
+        #print "--> upsert"
+        """Adds a document to Couchbase.
         """
 
         # Allow exceptions to be triggered (for testing purposes)
@@ -109,16 +108,16 @@ class DocManager(DocManagerBase):
         self.couchbase.set(doc["_id"], doc)
 
     def remove(self, doc):
-        print "--> remove"
-        """Removes the document from the doc dict.
+        #print "--> remove"
+        """Removes the document from Couchbase.
         """
         doc_id = doc["_id"]
         self.couchbase.delete(doc_id)
 
     def search(self, start_ts, end_ts):
-        print '--> search: ', start_it, end_ts
-        """Searches through all documents and finds all documents that were
-        modified or deleted within the range.
+        #print '--> search: ', start_it, end_ts
+        """Searches in Couchbase and finds all documents that were
+        modified or deleted within the timestamp range.
         """
         q = Query(inclusive_end=False)
         q.mapkey_range = [start_ts, end_ts + q.STRING_RANGE_END]
@@ -129,18 +128,18 @@ class DocManager(DocManagerBase):
             yield result.doc.value
 
     def commit(self):
-        print "--> commit"
+        #print "--> commit"
         """Simply passes since we're not using an engine that needs commiting.
         """
         pass
 
     def get_last_doc(self):
-        print "--> get_last_doc"
-        """Searches through the doc dict to find the document that was
+        #print "--> get_last_doc"
+        """Searches in Couchbase to find the document that was
         modified or deleted most recently."""
 
         q = Query(descending=True, limit=1)
-        view = View(self.couchbase, "dev_mongo_connect", "by_timestamp", query=q, include_docs=True)
+        view = View(self.couchbase, "mongo_connect", "by_timestamp", query=q, include_docs=True)
 
         for row in view:
             print row
